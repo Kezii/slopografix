@@ -13,6 +13,8 @@ RUN apt-get update \
         gdb \
         nano \
         vim \
+	curl \
+	links \
     && rm -rf /var/lib/apt/lists/*
 
 ENV TERM=vt100 \
