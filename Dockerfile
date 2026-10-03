@@ -1,21 +1,6 @@
-FROM debian:bookworm-slim
+FROM archlinux:latest
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        bash \
-        tmux \
-        socat \
-        ncurses-term \
-        util-linux \
-        procps \
-        neofetch \
-        build-essential \
-        gdb \
-        nano \
-        vim \
-	curl \
-	links \
-    && rm -rf /var/lib/apt/lists/*
+RUN pacman -Sy tmux socat ncurses fastfetch nano vim links --noconfirm
 
 ENV TERM=vt100 \
     LANG=C \
