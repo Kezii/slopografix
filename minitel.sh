@@ -32,7 +32,7 @@ cleanup() {
 
     tmux kill-session -t "$SESSION" 2>/dev/null || true
 
-    rm -f "$PTY"
+    rm -f "$PTY" /tmp/minitel-inputrc
 }
 
 trap cleanup EXIT INT TERM
@@ -52,7 +52,7 @@ stty -F "$SERIAL" \
     cs7 \
     parenb \
     -parodd \
-    cstopb \
+    -cstopb \
     -ixon \
     -ixoff \
     raw \
@@ -83,7 +83,15 @@ fi
 # Tell the PTY that the Minitel is 80x24
 stty -F "$PTY" \
     rows "$ROWS" \
-    cols "$COLS"
+    cols "$COLS" \
+    -echoctl \
+    -echoke \
+    -imaxbel
+
+# Minimal readline behavior: no bell, no bracketed-paste control sequences.
+# 3 extra bytes per paste otherwise, plus garbage on Minitel.
+printf '%s\n' 'set bell-style none' 'set enable-bracketed-paste off' > /tmp/minitel-inputrc
+export INPUTRC=/tmp/minitel-inputrc
 
 # Create tmux session
 tmux new-session \
@@ -101,14 +109,43 @@ tmux new-session \
         CLICOLOR_FORCE=0 \
         FORCE_COLOR=0 \
         COLORTERM="" \
-        bash -l'
+        PAGER="less -X -S" \
+        MANPAGER="less -X -S" \
+        LESS=R \
+        PROMPT_COMMAND="" \
+        PS1="$ " \
+        PS2="> " \
+        INPUTRC=/tmp/minitel-inputrc \
+        bash --noprofile --norc -i'
 
-# Keep tmux fixed at 80x24
+# Keep tmux fixed at 80x24: no resize storms at 120c/s
 tmux set-window-option -t "$SESSION" window-size manual
 tmux resize-window -t "$SESSION" -x "$COLS" -y "$ROWS"
+tmux set-window-option -t "$SESSION" aggressive-resize off
 
 # Remove tmux status line: full 24 lines belong to the Minitel
 tmux set-option -t "$SESSION" status off
+tmux set-option -t "$SESSION" status-interval 0
+tmux set-option -t "$SESSION" display-time 0
+tmux set-option -t "$SESSION" message-limit 0
+
+# Slow-link tuning: kill every byte that is not pane content.
+# alternate-screen off = vim/less do not do smcup/rmcup full repaints.
+tmux set-window-option -t "$SESSION" alternate-screen off
+tmux set-window-option -t "$SESSION" allow-rename off
+tmux set-window-option -t "$SESSION" automatic-rename off
+tmux set-window-option -t "$SESSION" monitor-activity off
+tmux set-window-option -t "$SESSION" monitor-bell off
+tmux set-option -t "$SESSION" visual-activity off
+tmux set-option -t "$SESSION" visual-bell off
+tmux set-option -t "$SESSION" visual-silence off
+tmux set-option -t "$SESSION" bell-action none
+tmux set-option -t "$SESSION" set-titles off
+tmux set-option -t "$SESSION" history-limit 50
+tmux set-option -s escape-time 0
+tmux set-option -s focus-events off
+tmux set-option -s set-clipboard off
+tmux set-option -s default-terminal vt100
 
 # Attach Minitel as one tmux client.
 #
@@ -137,7 +174,8 @@ MINITEL_PID=$!
 sleep 0.5
 
 echo "Minitel terminal: ${COLS}x${ROWS}, 1200 7E1"
+echo "Second client attach = one full repaint (~16s at 120c/s). Detach PC when idle."
 echo "Connecting PC to tmux session '${SESSION}'..."
 
-# PC is the second tmux client
+# PC is the second tmux client (size is pinned, so no resize storms)
 exec tmux attach-session -t "$SESSION"
