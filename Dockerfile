@@ -1,6 +1,13 @@
 FROM archlinux:latest
 
-RUN pacman -Sy tmux socat ncurses fastfetch nano vim links --noconfirm
+RUN pacman -Sy tmux socat ncurses fastfetch nano vim links git base-devel --noconfirm
+
+RUN useradd -m slop 
+USER slop
+RUN cd $HOME && git clone https://aur.archlinux.org/claude-code.git && cd claude-code && makepkg -s --noconfirm
+USER root
+RUN cd /home/slop/claude-code && pacman -U *.pkg.tar.* --noconfirm
+
 
 ENV TERM=vt100 \
     LANG=C \
